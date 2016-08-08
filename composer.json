@@ -1,0 +1,27 @@
+{
+  "name": "etdsolutions/profiler",
+  "minimum-stability": "dev",
+  "description": "Package Profiler du Framework ETD",
+  "homepage": "https://github.com/etd-framework/profiler",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Jean-Baptiste Alleaume",
+      "email": "jb.alleaume@etd-solutions.com",
+      "homepage": "http://alleau.me",
+      "role": "Manager"
+    }
+  ],
+  "require": {
+    "php": "~5.4|~7.0",
+    "joomla/database": "~2.0@dev",
+    "joomla/di": "~2.0@dev",
+    "joomla/profiler": "~2.0@dev"
+  },
+  "autoload": {
+    "psr-4": {
+      "EtdSolutions\\Profiler\\": "src/"
+    },
+    "classmap": ["src/ProfiledMysqliDriver.php"]
+  }
+}
