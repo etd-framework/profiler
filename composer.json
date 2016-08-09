@@ -22,6 +22,6 @@
     "psr-4": {
       "EtdSolutions\\Profiler\\": "src/"
     },
-    "classmap": ["src/ProfiledMysqliDriver.php"]
+    "classmap": ["src/ProfiledmysqliDriver.php"]
   }
 }
