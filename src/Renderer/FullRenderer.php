@@ -72,15 +72,14 @@ require([\"jquery\",\"domReady!\"], function(\$) {
 </script>";
 
         $html[] = '<style>
-div#system-debug {
-	clear: both;
-}
-
 #system-debug {
 	background-color: #fff;
 	color: #000;
 	border: 1px dashed silver;
 	padding: 10px;
+	clear: both;
+	z-index: 5000;
+	position: relative;
 }
 
 #system-debug div.dbg-header {
