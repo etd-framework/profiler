@@ -40,7 +40,7 @@ class ProfilerProvider implements ServiceProviderInterface {
 	            }
 
 	            $renderer = new $renderer_class();
-                $profiler = new Profiler($config->get('profiler.name', 'default'), $renderer, null, (bool) $config->get('profiler.memoryrealusage', false));
+                $profiler = new Profiler($config->get('profiler.name', 'default'), $renderer, [], (bool) $config->get('profiler.memoryrealusage', false));
 
                 return $profiler;
 
