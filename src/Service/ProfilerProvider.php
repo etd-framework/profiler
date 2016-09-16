@@ -39,10 +39,15 @@ class ProfilerProvider implements ServiceProviderInterface {
 		            throw new \InvalidArgumentException(sprintf('%s profiler renderer class does not exist', $renderer_class));
 	            }
 
+	            // On instancie les classes.
 	            $renderer = new $renderer_class();
-
                 $profiler = new Profiler($config->get('profiler.name', 'default'), $renderer, [], (bool) $config->get('profiler.memoryrealusage', false));
 	            $profiler->setContainer($container);
+
+	            // On charge les fichiers de langue.
+	            $factory = $container->get('language');
+	            $factory->getLanguage()
+	                    ->load('profiler', realpath(dirname(__FILE__). "/.."));
 
                 return $profiler;
 
