@@ -529,6 +529,7 @@ div#system-debug {
         $duplicates     = array();
 
         $dbVersion5037 = (strpos($db->getName(), 'mysql') !== false) && version_compare($db->getVersion(), '5.0.37', '>=');
+        $dbVersion55   = (strpos($db->getName(), 'mysql') !== false) && version_compare($db->getVersion(), '5.5', '>=');
         $dbVersion56   = (strpos($db->getName(), 'mysql') !== false) && version_compare($db->getVersion(), '5.6', '>=');
 
         if ($dbVersion5037) {
@@ -569,7 +570,7 @@ div#system-debug {
 
             if ((stripos($query, 'select') === 0) || ($dbVersion56 && ((stripos($query, 'delete') === 0) || (stripos($query, 'update') === 0)))) {
                 try {
-                    $db->setQuery('EXPLAIN ' . ($dbVersion56 ? 'EXTENDED ' : '') . $query);
+                    $db->setQuery('EXPLAIN ' . (($dbVersion56 || $dbVersion55) ? 'EXTENDED ' : '') . $query);
                     $explains[$id] = $db->loadAssocList();
                 } catch (\Exception $e) {
                     $explains[$id] = array(array('Error' => $e->getMessage()));
