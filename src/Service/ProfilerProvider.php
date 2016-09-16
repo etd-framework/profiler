@@ -29,7 +29,7 @@ class ProfilerProvider implements ServiceProviderInterface {
         // On instancie le profiler si besoin.
         if ($config->get('profiler.enable', false)) {
 
-            $container->set('Joomla\\Profiler\\ProfilerInterface', function () use ($config) {
+            $container->set('Joomla\\Profiler\\ProfilerInterface', function () use ($config, $container) {
 
             	// Classe pour le renderer
             	$renderer_class = $config->get('profiler.renderer', '\\Joomla\\Profiler\\Renderer\\DefaultRenderer');
@@ -40,7 +40,9 @@ class ProfilerProvider implements ServiceProviderInterface {
 	            }
 
 	            $renderer = new $renderer_class();
+
                 $profiler = new Profiler($config->get('profiler.name', 'default'), $renderer, [], (bool) $config->get('profiler.memoryrealusage', false));
+	            $profiler->setContainer($container);
 
                 return $profiler;
 
