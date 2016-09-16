@@ -480,12 +480,12 @@ div#system-debug {
         $db  = $this->container->get('db');
         $log = $db->getLog();
 
-        if (!$log) {
-            return null;
-        }
+	    $ltext = $this->container->get('language')
+	                             ->getText();
 
-        $ltext = $this->container->get('language')
-                                 ->getText();
+        if (!$log) {
+            return $ltext->translate('DEBUG_NO_QUERIES');
+        }
 
         $timings    = $db->getTimings();
         $callStacks = $db->getCallStacks();
