@@ -7,7 +7,7 @@
  * @author      ETD Solutions http://etd-solutions.com
  */
 
-namespace EtdSolutions\Profile\Service;
+namespace EtdSolutions\Profiler\Service;
 
 use EtdSolutions\Profiler\Profiler;
 use Joomla\DI\Container;
