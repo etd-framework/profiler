@@ -9,7 +9,10 @@
 
 namespace Joomla\Database\Profiledmysqli;
 
+use Joomla\Database\Exception\ConnectionFailureException;
+use Joomla\Database\Exception\ExecutionFailureException;
 use Joomla\Database\Mysqli\MysqliDriver;
+use Joomla\Database\Query\PreparableInterface;
 use mysqli;
 use Psr\Log;
 
@@ -21,187 +24,326 @@ use Psr\Log;
  */
 class ProfiledmysqliDriver extends MysqliDriver {
 
-    /**
-     * @var    array  The log of executed SQL statements by the database driver.
-     */
-    protected $log = [];
+	/**
+	 * @var    array  The log of executed SQL statements by the database driver.
+	 */
+	protected $log = [];
 
-    /**
-     * @var    array  The log of executed SQL statements timings (start and stop microtimes) by the database driver.
-     */
-    protected $timings = [];
+	/**
+	 * @var    array  The log of executed SQL statements timings (start and stop microtimes) by the database driver.
+	 */
+	protected $timings = [];
 
-    /**
-     * @var    array  The log of executed SQL statements timings (start and stop microtimes) by the database driver.
-     */
-    protected $callStacks = [];
+	/**
+	 * @var    array  The log of executed SQL statements timings (start and stop microtimes) by the database driver.
+	 */
+	protected $callStacks = [];
 
-    /**
-     * @var callable
-     */
-    protected $disconnectHandler;
+	/**
+	 * @var callable
+	 */
+	protected $disconnectHandler;
 
-    /**
-     * @return array
-     */
-    public function getLog() {
+	/**
+	 * @return array
+	 */
+	public function getLog() {
 
-        return $this->log;
-    }
+		return $this->log;
+	}
 
-    /**
-     * @return array
-     */
-    public function getCallStacks() {
+	/**
+	 * @return array
+	 */
+	public function getCallStacks() {
 
-        return $this->callStacks;
-    }
+		return $this->callStacks;
+	}
 
-    /**
-     * @return array
-     */
-    public function getTimings() {
+	/**
+	 * @return array
+	 */
+	public function getTimings() {
 
-        return $this->timings;
-    }
+		return $this->timings;
+	}
 
-    /**
-     * @param callable $disconnectHandler
-     */
-    public function setDisconnectHandler($disconnectHandler) {
+	/**
+	 * @param callable $disconnectHandler
+	 */
+	public function setDisconnectHandler($disconnectHandler) {
 
-        $this->disconnectHandler = $disconnectHandler;
-    }
+		$this->disconnectHandler = $disconnectHandler;
+	}
 
-    public function __construct(array $options) {
+	public function __construct(array $options) {
 
-        parent::__construct($options);
+		parent::__construct($options);
 
-        $this->log        = [];
-        $this->callStacks = [];
-        $this->timings    = [];
+		$this->log        = [];
+		$this->callStacks = [];
+		$this->timings    = [];
 
-    }
+	}
 
-    /**
-     * Destructor.
-     *
-     * @since   1.0
-     */
-    public function __destruct() {
-        $this->disconnect();
-    }
+	/**
+	 * Destructor.
+	 *
+	 * @since   1.0
+	 */
+	public function __destruct() {
 
-    /**
-     * Execute the SQL statement.
-     *
-     * @return  mixed  A database cursor resource on success, boolean false on failure.
-     *
-     * @since   1.0
-     * @throws  \RuntimeException
-     */
-    public function execute() {
+		$this->disconnect();
+	}
 
-        $this->connect();
+	/**
+	 * Execute the SQL statement.
+	 *
+	 * @return  mixed  A database cursor resource on success, boolean false on failure.
+	 *
+	 * @since   1.0
+	 * @throws  \RuntimeException
+	 */
+	public function execute() {
 
-        // Take a local copy so that we don't modify the original query and cause issues later
-        $sql = $this->replacePrefix((string)$this->sql);
+		$this->connect();
 
-        if ($this->limit > 0 || $this->offset > 0) {
-            $sql .= ' LIMIT ' . $this->offset . ', ' . $this->limit;
-        }
+		// Take a local copy so that we don't modify the original query and cause issues later
+		$sql = $this->replacePrefix((string) $this->sql);
 
-        // Increment the query counter.
-        $this->count++;
+		if ($this->limit > 0 || $this->offset > 0) {
+			$sql .= ' LIMIT ' . $this->offset . ', ' . $this->limit;
+		}
 
-        // If debugging is enabled then let's log the query.
-        if ($this->debug) {
+		// Increment the query counter.
+		$this->count++;
 
-            // Add the query to the object queue.
-            $this->log[] = $sql;
+		// If debugging is enabled then let's log the query.
+		if ($this->debug) {
 
-            $this->timings[] = microtime(true);
+			// Add the query to the object queue.
+			$this->log[] = $sql;
 
-            if (is_object($this->cursor)) {
-                // Avoid warning if result already freed by third-party library
-                @$this->freeResult();
-            }
+			$this->timings[] = microtime(true);
 
-            $memoryBefore = memory_get_usage();
-        }
+			if (is_object($this->cursor)) {
+				// Avoid warning if result already freed by third-party library
+				@$this->freeResult();
+			}
 
-        // Reset the error values.
-        $this->errorNum = 0;
-        $this->errorMsg = '';
+			$memoryBefore = memory_get_usage();
+		}
 
-        // Execute the query. Error suppression is used here to prevent warnings/notices that the connection has been lost.
-        $this->cursor = @mysqli_query($this->connection, $sql);
+		// Reset the error values.
+		$this->errorNum = 0;
+		$this->errorMsg = '';
 
-        if ($this->debug) {
+		// Execute the query.
+		$this->executed = false;
 
-            $this->timings[]    = microtime(true);
-            $this->callStacks[] = debug_backtrace();
+		if ($this->prepared instanceof \mysqli_stmt) {
 
-            $this->callStacks[count($this->callStacks) - 1][0]['memory'] = [
-                $memoryBefore,
-                memory_get_usage(),
-                is_object($this->cursor) ? $this->getNumRows() : null
-            ];
-        }
+			// Bind the variables:
+			if ($this->sql instanceof PreparableInterface) {
 
-        // If an error occurred handle it.
-        if (!$this->cursor) {
-            $this->errorNum = (int)mysqli_errno($this->connection);
-            $this->errorMsg = (string)mysqli_error($this->connection) . "\n-- SQL --\n" . $sql;
+				$bounded =& $this->sql->getBounded();
 
-            // Check if the server was disconnected.
-            if (!$this->connected()) {
-                try {
-                    // Attempt to reconnect.
-                    $this->connection = null;
-                    $this->connect();
-                } catch (\RuntimeException $e) // If connect fails, ignore that exception and throw the normal exception.
-                {
-                    $this->log(Log\LogLevel::ERROR, 'Database query failed (error #{code}): {message}', [
-                        'code'    => $this->errorNum,
-                        'message' => $this->errorMsg
-                    ]);
+				if (count($bounded)) {
 
-                    throw new \RuntimeException($this->errorMsg, $this->errorNum);
-                }
+					$params     = [];
+					$typeString = '';
 
-                // Since we were able to reconnect, run the query again.
-                return $this->execute();
-            }
+					foreach ($bounded as $key => $obj) {
 
-            // The server was not disconnected.
-            $this->log(Log\LogLevel::ERROR, 'Database query failed (error #{code}): {message}', [
-                'code'    => $this->errorNum,
-                'message' => $this->errorMsg
-            ]);
+						// Add the type to the type string
+						$typeString .= $obj->dataType;
 
-            throw new \RuntimeException($this->errorMsg, $this->errorNum);
-        }
+						// And add the value as an additional param
+						$params[] = $obj->value;
+					}
 
-        return $this->cursor;
-    }
+					// Make everything references for call_user_func_array()
+					$bindParams   = array();
+					$bindParams[] = &$typeString;
 
-    /**
-     * Disconnects the database.
-     *
-     * @return  void
-     *
-     * @since   1.0
-     */
-    public function disconnect() {
+					for ($i = 0; $i < count($params); $i++) {
+						$bindParams[] = &$params[$i];
+					}
 
-        if ($this->connection instanceof mysqli && $this->connection->stat() !== false) {
-            if ($this->disconnectHandler) {
-                call_user_func_array($this->disconnectHandler, array(&$this));
-            }
-        }
+					call_user_func_array([
+						$this->prepared,
+						'bind_param'
+					], $bindParams);
+				}
+			}
 
-        parent::disconnect();
-    }
+			$this->executed = $this->prepared->execute();
+			$this->cursor   = $this->prepared->get_result();
+
+			if ($this->debug) {
+
+				$this->timings[]    = microtime(true);
+				$this->callStacks[] = debug_backtrace();
+
+				$this->callStacks[count($this->callStacks) - 1][0]['memory'] = [
+					$memoryBefore,
+					memory_get_usage(),
+					is_object($this->cursor) ? $this->getNumRows() : null
+				];
+			}
+
+			// If the query was successful and we did not get a cursor, then set this to true (mimics mysql_query() return)
+			if ($this->executed && !$this->cursor) {
+				$this->cursor = true;
+			}
+		}
+
+		// If an error occurred handle it.
+		if (!$this->executed) {
+
+			$this->errorNum = (int) $this->connection->errno;
+			$this->errorMsg = (string) $this->connection->error;
+
+			// Check if the server was disconnected.
+			if (!$this->connected()) {
+
+				try {
+					// Attempt to reconnect.
+					$this->connection = null;
+					$this->connect();
+				} catch (ConnectionFailureException $e) { // If connect fails, ignore that exception and throw the normal exception.
+					$this->log(Log\LogLevel::ERROR, 'Database query failed (error #{code}): {message}; Failed query: {sql}', [
+							'code'    => $this->errorNum,
+							'message' => $this->errorMsg,
+							'sql'     => $sql,
+							'trace'   => debug_backtrace()
+						]);
+
+					throw new ExecutionFailureException($sql, $this->errorMsg, $this->errorNum);
+				}
+
+				// Since we were able to reconnect, run the query again.
+				return $this->execute();
+			}
+
+			// The server was not disconnected.
+			$this->log(Log\LogLevel::ERROR, 'Database query failed (error #{code}): {message}; Failed query: {sql}', [
+					'code'    => $this->errorNum,
+					'message' => $this->errorMsg,
+					'sql'     => $sql,
+					'trace'   => debug_backtrace()
+				]);
+
+			throw new ExecutionFailureException($sql, $this->errorMsg, $this->errorNum);
+		}
+
+		return $this->cursor;
+	}
+
+	/**
+	 * Internal method to execute queries which cannot be run as prepared statements.
+	 *
+	 * @param   string  $sql  SQL statement to execute.
+	 *
+	 * @return  boolean
+	 *
+	 * @since   __DEPLOY_VERSION__
+	 */
+	protected function executeUnpreparedQuery($sql) {
+
+		$this->connect();
+
+		// Increment the query counter.
+		$this->count++;
+
+		// If debugging is enabled then let's log the query.
+		if ($this->debug) {
+
+			// Add the query to the object queue.
+			$this->log[] = $sql;
+
+			$this->timings[] = microtime(true);
+
+			if (is_object($this->cursor)) {
+				// Avoid warning if result already freed by third-party library
+				@$this->freeResult();
+			}
+
+			$memoryBefore = memory_get_usage();
+		}
+
+		$cursor = $this->connection->query($sql);
+
+		if ($this->debug) {
+
+			$this->timings[]    = microtime(true);
+			$this->callStacks[] = debug_backtrace();
+
+			$this->callStacks[count($this->callStacks) - 1][0]['memory'] = [
+				$memoryBefore,
+				memory_get_usage(),
+				is_object($this->cursor) ? $this->getNumRows() : null
+			];
+		}
+
+		// If an error occurred handle it.
+		if (!$cursor) {
+			$this->errorNum = (int) $this->connection->errno;
+			$this->errorMsg = (string) $this->connection->error;
+
+			// Check if the server was disconnected.
+			if (!$this->connected()) {
+				try {
+					// Attempt to reconnect.
+					$this->connection = null;
+					$this->connect();
+				} catch (ConnectionFailureException $e) { // If connect fails, ignore that exception and throw the normal exception.
+					$this->log(
+						Log\LogLevel::ERROR,
+						'Database query failed (error #{code}): {message}; Failed query: {sql}',
+						['code' => $this->errorNum, 'message' => $this->errorMsg, 'sql' => $sql, 'trace' => debug_backtrace()]
+					);
+
+					throw new ExecutionFailureException($sql, $this->errorMsg, $this->errorNum);
+				}
+
+				// Since we were able to reconnect, run the query again.
+				return $this->executeUnpreparedQuery($sql);
+			}
+
+			// The server was not disconnected.
+			$this->log(
+				Log\LogLevel::ERROR,
+				'Database query failed (error #{code}): {message}; Failed query: {sql}',
+				['code' => $this->errorNum, 'message' => $this->errorMsg, 'sql' => $sql, 'trace' => debug_backtrace()]
+			);
+
+			throw new ExecutionFailureException($sql, $this->errorMsg, $this->errorNum);
+		}
+
+		$this->freeResult($cursor);
+
+		return true;
+	}
+
+	/**
+	 * Disconnects the database.
+	 *
+	 * @return  void
+	 *
+	 * @since   1.0
+	 */
+	public function disconnect() {
+
+		if ($this->connection instanceof mysqli && $this->connection->stat() !== false)
+		{
+			if ($this->disconnectHandler)
+			{
+				call_user_func_array($this->disconnectHandler, array(&$this));
+			}
+		}
+
+		parent::disconnect();
+	}
 
 }
