@@ -115,21 +115,16 @@ class ProfiledmysqliDriver extends MysqliDriver {
 			$sql .= ' LIMIT ' . $this->offset . ', ' . $this->limit;
 		}
 
-		// Increment the query counter.
-		$this->count++;
-
 		// If debugging is enabled then let's log the query.
 		if ($this->debug) {
+
+			// Increment the query counter.
+			$this->count++;
 
 			// Add the query to the object queue.
 			$this->log[] = $sql;
 
 			$this->timings[] = microtime(true);
-
-			if (is_object($this->cursor)) {
-				// Avoid warning if result already freed by third-party library
-				@$this->freeResult();
-			}
 
 			$memoryBefore = memory_get_usage();
 		}
@@ -253,11 +248,11 @@ class ProfiledmysqliDriver extends MysqliDriver {
 
 		$this->connect();
 
-		// Increment the query counter.
-		$this->count++;
-
 		// If debugging is enabled then let's log the query.
 		if ($this->debug) {
+
+			// Increment the query counter.
+			$this->count++;
 
 			// Add the query to the object queue.
 			$this->log[] = $sql;
